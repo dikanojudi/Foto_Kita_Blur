@@ -3,14 +3,11 @@ import mediapipe as mp
 import numpy as np
 import pygame
 
-# Inisialisasi Pygame Mixer untuk Audio
 pygame.mixer.init()
 pygame.mixer.music.load("lagu.mp3") 
 
-# Variabel kontrol status audio
 musik_sedang_bermain = False
 
-# Inisialisasi MediaPipe Hands
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 hands = mp_hands.Hands(
@@ -19,7 +16,6 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.5
 )
 
-# Buka Kamera Utama
 cap = cv2.VideoCapture(0)
 
 while cap.isOpened():
@@ -27,7 +23,6 @@ while cap.isOpened():
     if not success:
         break
 
-    # Efek cermin pada video
     frame = cv2.flip(frame, 1)
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb_frame)
@@ -37,62 +32,49 @@ while cap.isOpened():
 
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
-            # Mengambil koordinat Y batas buku jari (PIP)
             telunjuk_pip = hand_landmarks.landmark[6].y
             tengah_pip = hand_landmarks.landmark[10].y
             manis_pip = hand_landmarks.landmark[14].y
             kelingking_pip = hand_landmarks.landmark[18].y
 
-            # Evaluasi status keterbukaan jari (True jika tegak ke atas)
             telunjuk_terbuka = hand_landmarks.landmark[8].y < telunjuk_pip
             tengah_terbuka = hand_landmarks.landmark[12].y < tengah_pip
             manis_terbuka = hand_landmarks.landmark[16].y < manis_pip
             kelingking_terbuka = hand_landmarks.landmark[20].y < kelingking_pip
             
-            # Logika Gestur: Hanya jari telunjuk dan tengah yang terangkat
             if telunjuk_terbuka and tengah_terbuka and (not manis_terbuka) and (not kelingking_terbuka):
                 gestur_terpenuhi = True
                 
-                # Proses pembuatan masker hitam-putih untuk area tangan
                 mask = np.zeros_like(frame_asli, dtype=np.uint8)
                 mp_drawing.draw_landmarks(mask, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
                 _, mask = cv2.threshold(mask, 1, 255, cv2.THRESH_BINARY)
 
-                # Pemrosesan efek Gaussian Blur pada latar belakang
                 frame_blured_full = cv2.GaussianBlur(frame_asli, (35, 35), 0)
                 tangan_tajam = cv2.bitwise_and(frame_asli, frame_asli, mask=mask)
                 mask_inv = cv2.bitwise_not(mask)
                 latar_blur = cv2.bitwise_and(frame_blured_full, frame_blured_full, mask=mask_inv)
                 
-                # Menggabungkan objek tangan jernih dengan latar belakang blur
                 frame = cv2.add(tangan_tajam, latar_blur)
 
-                # Menampilkan teks pada overlay video
                 cv2.putText(frame, "Foto Kita Blur!", (50, 50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
-            # Visualisasi titik landmark pada layar video
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-    # Kontrol logika pemutaran audio berdasarkan status gestur
     if gestur_terpenuhi:
         if not musik_sedang_bermain:
-            pygame.mixer.music.play(-1)  # Memutar musik secara berulang (looping)
+            pygame.mixer.music.play(-1) 
             musik_sedang_bermain = True
     else:
         if musik_sedang_bermain:
-            pygame.mixer.music.stop()   # Menghentikan musik saat gestur tidak sesuai
+            pygame.mixer.music.stop()   
             musik_sedang_bermain = False
 
-    # Menampilkan output video ke jendela screen
     cv2.imshow('Hand Gesture Detection', frame)
-
-    # Keluar dari aplikasi secara aman jika menekan tombol 'q'
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Pelepasan seluruh resource sistem
 pygame.mixer.music.stop()
 cap.release()
 cv2.destroyAllWindows()
